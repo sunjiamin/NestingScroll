@@ -82,6 +82,7 @@ public class EventDispatchPlanLayout extends ViewGroup {
         mTouchSlop = Util.px2dp(context, vc.getScaledTouchSlop()); //系统的值是8dp,太大了。。。
 
         //Scroller是一个专门用于处理滚动效果的工具类
+        // 第一步，创建Scroller的实例
         mScroller = new Scroller(getContext());
         mScroller.setFriction(0.98f);
 
@@ -174,6 +175,16 @@ public class EventDispatchPlanLayout extends ViewGroup {
         // 去掉默认行为，使得每个事件都会经过这个Layout
     }
 
+    /**
+     * getChildDrawingOrder 用于 返回当前迭代子视图的索引.
+     * 就是说 获取当前正在绘制的视图索引.
+     * 如果需要改变ViewGroup子视图绘制的顺序,则需要重载这个方法.
+     * 并且需要先调用 setChildrenDrawingOrderEnabled(boolean) 方法来启用子视图排序功能.
+     * @param childCount 子类个数
+     * @param i 当前迭代顺序   i  这个参数就是当前刷新的次序，就是现在要刷新第 i 个item
+     *          return 的返回值，就是上面的那个你在第 i 次需要刷新的那个item
+     * @return 绘制该迭代子类的索引
+     */
     @Override
     protected int getChildDrawingOrder(int childCount, int i) {
         ensureHeaderViewAndScrollView();
@@ -182,6 +193,7 @@ public class EventDispatchPlanLayout extends ViewGroup {
         if (headerIndex < scrollIndex) {
             return i;
         }
+        //如果scroll跑到header下层
         if (headerIndex == i) {
             return scrollIndex;
         } else if (scrollIndex == i) {
@@ -189,7 +201,6 @@ public class EventDispatchPlanLayout extends ViewGroup {
         }
         return i;
     }
-
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
@@ -205,32 +216,40 @@ public class EventDispatchPlanLayout extends ViewGroup {
         }
         switch (action) {
             case MotionEvent.ACTION_DOWN:
-                mActivePointerId = ev.getPointerId(0);
+                //手指按下
+                mActivePointerId = ev.getPointerId(0);//得到第一个触摸点
                 mIsDragging = false;
                 pointerIndex = ev.findPointerIndex(mActivePointerId);
                 if (pointerIndex < 0) {
+                    //没有触摸到 不拦截
                     return false;
                 }
+                // 在down的时候记录初始的y值
                 mInitialDownY = ev.getY(pointerIndex);
                 break;
 
             case MotionEvent.ACTION_MOVE:
+                //手指移动
                 pointerIndex = ev.findPointerIndex(mActivePointerId);
                 if (pointerIndex < 0) {
+                    //没有触摸到 不拦截
                     Log.e(TAG, "Got ACTION_MOVE event but have an invalid active pointer id.");
                     return false;
                 }
-
+                //获取触摸点的Y左边 通过Y左边判断是否拖动
                 final float y = ev.getY(pointerIndex);
+                // 判断是否dragging
                 startDragging(y);
                 break;
 
+            //多点触控  双指逻辑处理
             case MotionEventCompat.ACTION_POINTER_UP:
                 onSecondaryPointerUp(ev);
                 break;
 
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
+                //手指抬起活 取消
                 mIsDragging = false;
                 mActivePointerId = INVALID_POINTER;
                 break;
@@ -249,7 +268,7 @@ public class EventDispatchPlanLayout extends ViewGroup {
                     + mTarget.canChildScrollUp());
             return false;
         }
-
+        // 速度追踪
         acquireVelocityTracker(ev);
 
         switch (action) {
@@ -269,6 +288,7 @@ public class EventDispatchPlanLayout extends ViewGroup {
 
                 if (mIsDragging) {
                     float dy = y - mLastMotionY;
+                    Log.e(TAG,"ACTION_MOVE dy:"+dy);
                     if (dy >= 0) {
                         moveTargetView(dy);
                     } else {
@@ -310,11 +330,14 @@ public class EventDispatchPlanLayout extends ViewGroup {
 
                 if (mIsDragging) {
                     mIsDragging = false;
+                    // 获取瞬时速度
                     mVelocityTracker.computeCurrentVelocity(1000, mMaxVelocity);
                     final float vy = mVelocityTracker.getYVelocity(mActivePointerId);
+                    Log.e("sjm","当前瞬时速度："+vy);
                     finishDrag((int) vy);
                 }
                 mActivePointerId = INVALID_POINTER;
+                //释放速度追踪
                 releaseVelocityTracker();
                 return false;
             }
@@ -344,16 +367,20 @@ public class EventDispatchPlanLayout extends ViewGroup {
     private void finishDrag(int vy) {
         Log.i(TAG, "TouchUp: vy = " + vy);
         if (vy > 0) {
+            // 向下触发fling,需要滚动到Init位置
             mNeedScrollToInitPos = true;
+            //抛(fling)：手指触动屏幕后，稍微滑动后立即松开
             mScroller.fling(0, mTargetCurrentOffset, 0, vy,
                     0, 0, mTargetEndOffset, Integer.MAX_VALUE);
             invalidate();
         } else if (vy < 0) {
+            // 向上触发fling,需要滚动到End位置
             mNeedScrollToEndPos = true;
             mScroller.fling(0, mTargetCurrentOffset, 0, vy,
                     0, 0, mTargetEndOffset, Integer.MAX_VALUE);
             invalidate();
         } else {
+            //没有触发fling,就近原则  没有快速滑动
             if (mTargetCurrentOffset <= (mTargetEndOffset + mTargetInitOffset) / 2) {
                 mNeedScrollToEndPos = true;
             } else {
@@ -363,6 +390,10 @@ public class EventDispatchPlanLayout extends ViewGroup {
         }
     }
 
+    /**
+     * 判断是否拖动
+     * @param y 触摸点的Y坐标
+     */
     private void startDragging(float y) {
         if (y > mInitialDownY || mTargetCurrentOffset > mTargetEndOffset) {
             final float yDiff = Math.abs(y - mInitialDownY);
@@ -387,12 +418,20 @@ public class EventDispatchPlanLayout extends ViewGroup {
 
     private void moveTargetView(float dy) {
         int target = (int) (mTargetCurrentOffset + dy);
+        //target
         moveTargetViewTo(target);
     }
 
+    /**
+     *
+     * @param target 滑动的偏移量 加上 上次偏移量
+     */
     private void moveTargetViewTo(int target) {
         target = Math.max(target, mTargetEndOffset);
+        //Offset this view's vertical location by the specified number of pixels.
+        //垂直方向偏移
         ViewCompat.offsetTopAndBottom(mTargetView, target - mTargetCurrentOffset);
+        Log.e("sjm","****target:"+target +" mTargetCurrentOffset: "+mTargetCurrentOffset +" mTargetView Move:"+(target - mTargetCurrentOffset));
         mTargetCurrentOffset = target;
 
         int headerTarget;
@@ -405,11 +444,15 @@ public class EventDispatchPlanLayout extends ViewGroup {
             headerTarget = (int) (mHeaderEndOffset + percent * (mHeaderInitOffset - mHeaderEndOffset));
         }
         ViewCompat.offsetTopAndBottom(mHeaderView, headerTarget - mHeaderCurrentOffset);
+        Log.e("sjm","###headerTarget:"+headerTarget +" mHeaderCurrentOffset: "+mHeaderCurrentOffset +"mHeaderView Move:"+(headerTarget - mHeaderCurrentOffset));
         mHeaderCurrentOffset = headerTarget;
     }
 
     @Override
     public void computeScroll() {
+
+        // 第三步，重写computeScroll()方法，并在其内部完成平滑滚动的逻辑
+        //computeScrollOffset 为false 时表示 fling 操作已经结束，为 true 时表示 fling 正在进行
         if (mScroller.computeScrollOffset()) {
             int offsetY = mScroller.getCurrY();
             moveTargetViewTo(offsetY);
@@ -419,6 +462,7 @@ public class EventDispatchPlanLayout extends ViewGroup {
             if (mTargetCurrentOffset == mTargetInitOffset) {
                 return;
             }
+            // 第二步，调用startScroll()方法来初始化滚动数据并刷新界面
             mScroller.startScroll(0, mTargetCurrentOffset, 0, mTargetInitOffset - mTargetCurrentOffset);
             invalidate();
         } else if (mNeedScrollToEndPos) {
@@ -429,6 +473,7 @@ public class EventDispatchPlanLayout extends ViewGroup {
                     mTarget.fling(-mScroller.getCurrVelocity());
                 }
             }
+            // 第二步，调用startScroll()方法来初始化滚动数据并刷新界面
             mScroller.startScroll(0, mTargetCurrentOffset, 0, mTargetEndOffset - mTargetCurrentOffset);
             invalidate();
         }
