@@ -9,6 +9,7 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
 import com.jojo.jiaminsun.nestingscroll.One.EventDispatchPlanActivity;
+import com.jojo.jiaminsun.nestingscroll.Three.CoordinatorLayoutActivity;
 import com.jojo.jiaminsun.nestingscroll.Two.NestingScrollActivity;
 
 import java.util.ArrayList;
@@ -35,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
                 } else if(position == 1){
                     intent = new Intent(MainActivity.this, NestingScrollActivity.class);
                 } else if(position == 2){
-                   // intent = new Intent(MainActivity.this, CoordinatorLayoutActivity.class);
+                    intent = new Intent(MainActivity.this, CoordinatorLayoutActivity.class);
                 }
 
                 if(intent != null){
